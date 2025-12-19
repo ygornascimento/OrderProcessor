@@ -4,15 +4,33 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Orders.Domain.Entities;
+using Orders.Application.Contracts;
 
 namespace Orders.Application.UseCases.CreateOrder
 {
     public class CreateOrderHandler
     {
-        public Task<Guid> HandleAsync(CreateOrderRequest request, CancellationToken ct = default)
+        private readonly IOrderPublisher _publisher;
+
+        public CreateOrderHandler(IOrderPublisher publisher)
+        {
+            _publisher = publisher;
+        }
+        public async Task<Guid> HandleAsync(CreateOrderRequest request, CancellationToken ct = default)
         {
             var order = new Order(Guid.NewGuid(), request.CustomerName, request.Amount, request.OrderDate);
-            return Task.FromResult(order.Id);
+
+            var message = new
+            {
+                order.Id,
+                order.CustomerName,
+                order.Amount,
+                order.OrderDate
+            };
+
+            await _publisher.PublishAsync(message, ct);
+            
+            return order.Id;
         }
     }
 }
