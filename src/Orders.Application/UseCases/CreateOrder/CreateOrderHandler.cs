@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Orders.Domain.Entities;
 using Orders.Application.Contracts;
+using Orders.Application.Messaging;
 
 namespace Orders.Application.UseCases.CreateOrder
 {
@@ -20,13 +21,13 @@ namespace Orders.Application.UseCases.CreateOrder
         {
             var order = new Order(Guid.NewGuid(), request.CustomerName, request.Amount, request.OrderDate);
 
-            var message = new
-            {
+            var message = new OrderCreatedMessage
+            (
                 order.Id,
                 order.CustomerName,
                 order.Amount,
                 order.OrderDate
-            };
+            );
 
             await _publisher.PublishAsync(message, ct);
             
