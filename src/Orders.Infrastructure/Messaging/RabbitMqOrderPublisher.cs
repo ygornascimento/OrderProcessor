@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices.Marshalling;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Orders.Application.Contracts;
