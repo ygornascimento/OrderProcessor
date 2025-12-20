@@ -1,6 +1,8 @@
 using Orders.Application.Contracts;
 using Orders.Application.UseCases.CreateOrder;
 using Orders.Infrastructure.Messaging;
+using Microsoft.EntityFrameworkCore;
+using Orders.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,10 @@ builder.Services.AddSwaggerGen();
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
 builder.Services.AddSingleton<IOrderPublisher, RabbitMqOrderPublisher>();
 builder.Services.AddScoped<CreateOrderHandler>();
+
+//SQL
+builder.Services.AddDbContext<OrdersDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("OrdersDb")));
 
 var app = builder.Build();
 
