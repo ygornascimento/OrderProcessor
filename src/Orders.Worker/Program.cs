@@ -2,6 +2,7 @@ using Orders.Worker;
 using Orders.Worker.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Orders.Infrastructure.Persistence;
+using Orders.Infrastructure.Mongo;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
@@ -13,6 +14,11 @@ if (string.IsNullOrWhiteSpace(cs))
 builder.Services.AddDbContext<OrdersDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("OrdersDb")));
 builder.Services.AddHostedService<RabbitMqOrderConsumer>();
+
+builder.Services.Configure<MongoOptions>(
+    builder.Configuration.GetSection(MongoOptions.SectionName));
+
+builder.Services.AddSingleton<MongoDb>();
 
 var host = builder.Build();
 host.Run();
