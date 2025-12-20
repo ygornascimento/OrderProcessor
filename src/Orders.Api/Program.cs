@@ -11,7 +11,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-//Dependency Injection
+//RabbitMQ
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
 builder.Services.AddSingleton<IOrderPublisher, RabbitMqOrderPublisher>();
 builder.Services.AddScoped<CreateOrderHandler>();
@@ -23,6 +23,8 @@ builder.Services.AddDbContext<OrdersDbContext>(options =>
 //Mongo
 builder.Services.Configure<MongoOptions>(builder.Configuration.GetSection(MongoOptions.SectionName));
 builder.Services.AddSingleton<MongoDb>();
+builder.Services.AddScoped<OrderReadModelWriter>();
+builder.Services.AddScoped<OrderReadModelReader>();
 
 var app = builder.Build();
 
@@ -33,7 +35,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.MapControllers();
 
 app.Run();

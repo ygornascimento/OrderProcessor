@@ -8,7 +8,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Orders.Infrastructure.ReadModel
 {
-    internal class OrderReadModel
+    public class OrderReadModel
     {
         [BsonId]
         [BsonRepresentation(BsonType.String)]

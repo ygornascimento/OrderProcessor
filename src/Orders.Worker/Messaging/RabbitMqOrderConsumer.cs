@@ -4,6 +4,9 @@ using Microsoft.Extensions.Options;
 using Orders.Application.Messaging;
 using Orders.Domain.Entities;
 using Orders.Infrastructure.Persistence;
+using Orders.Infrastructure.Mongo;
+using Orders.Infrastructure.ReadModel;
+
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;
@@ -17,13 +20,15 @@ namespace Orders.Worker.Messaging
         private readonly RabbitMqOptions _options;
         private readonly IServiceScopeFactory _scopeFactory;
 
+
         private IConnection? _connection;
         private IModel? _channel;
 
         public RabbitMqOrderConsumer(
             IOptions<RabbitMqOptions> options,
             ILogger<RabbitMqOrderConsumer> logger,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory
+            )
         {
             _options = options.Value;
             _logger = logger;
@@ -90,6 +95,17 @@ namespace Orders.Worker.Messaging
                     // 1) Scope por mensagem (DbContext scoped)
                     using var scope = _scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                    var readModelWriter = scope.ServiceProvider.GetRequiredService<OrderReadModelWriter>();
+
+
+                    // 1.1) Idempotência explícita: se já existe, ACK e sai
+                    var exists = await db.Orders.AnyAsync(o => o.Id == message.Id, stoppingToken);
+                    if (exists)
+                    {
+                        _logger.LogInformation("Order {Id} já existe (duplicada). ACK e segue.", message.Id);
+                        channel.BasicAck(ea.DeliveryTag, multiple: false);
+                        return;
+                    }
 
                     // 2) Monta entidade com o MESMO Id da mensagem (idempotência via PK)
                     var order = new Order(
@@ -100,28 +116,37 @@ namespace Orders.Worker.Messaging
 
                     db.Orders.Add(order);
 
-                    // 3) Persiste
+                    // 3) Persiste no SQL
                     await db.SaveChangesAsync(stoppingToken);
 
-                    // 4) Só ACK depois do commit no banco
+                    // 3.1) Atualiza read model no Mongo (cache de leitura)
+                    var doc = new OrderReadModel
+                    {
+                        Id = message.Id,
+                        CustomerName = message.CustomerName,
+                        Amount = message.Amount,
+                        OrderDate = message.OrderDate
+                    };
+
+                    await readModelWriter.UpsertAsync(doc, stoppingToken);
+
+
+                    // 4) Só ACK depois de SQL + Mongo
                     channel.BasicAck(ea.DeliveryTag, multiple: false);
                 }
                 catch (DbUpdateException dbEx)
                 {
-                    // Idempotência mínima:
-                    // Se a mesma mensagem chegar de novo (reentrega), o PK (Id) já existe.
-                    // Em vez de reprocessar eternamente, você dá ACK e segue.
-                    _logger.LogWarning(dbEx, "Possível duplicidade (PK). ACK para evitar reprocessamento infinito.");
-                    _channel?.BasicAck(ea.DeliveryTag, multiple: false);
+                    _logger.LogError(dbEx, "Falha ao persistir no SQL. NACK com requeue=true.");
+                    channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
                 }
                 catch (OperationCanceledException)
                 {
-                    // Se o serviço está parando, não inventa moda
-                    _logger.LogInformation("Cancelamento solicitado. Encerrando processamento.");
+                    _logger.LogInformation("Cancelamento solicitado. NACK com requeue=true.");
+                    channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: true);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Erro processando mensagem. NACK sem requeue (mensagem pode estar 'podre').");
+                    _logger.LogError(ex, "Erro processando mensagem. NACK sem requeue.");
                     channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
                 }
             };

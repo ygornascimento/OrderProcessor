@@ -17,8 +17,16 @@ builder.Services.AddHostedService<RabbitMqOrderConsumer>();
 
 builder.Services.Configure<MongoOptions>(
     builder.Configuration.GetSection(MongoOptions.SectionName));
+builder.Services.AddScoped<OrderReadModelWriter>();
 
 builder.Services.AddSingleton<MongoDb>();
 
 var host = builder.Build();
+
+using (var scope = host.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+    db.Database.Migrate();
+}
+
 host.Run();
