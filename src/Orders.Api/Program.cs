@@ -4,8 +4,22 @@ using Orders.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Orders.Infrastructure.Persistence;
 using Orders.Infrastructure.Mongo;
+using Serilog;
+using Prometheus;
+
+//Lgger
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .Enrich.WithEnvironmentName()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .WriteTo.Console()
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+//Logger
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -28,6 +42,17 @@ builder.Services.AddScoped<OrderReadModelReader>();
 
 var app = builder.Build();
 
+//Logger
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (ctx, http) =>
+    {
+        ctx.Set("TraceId", http.TraceIdentifier);
+        ctx.Set("RequestPath", http.Request.Path);
+    };
+});
+
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -41,7 +66,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
-
+app.UseHttpMetrics();
+app.MapMetrics();
 app.Run();
 
 public partial class Program { }
