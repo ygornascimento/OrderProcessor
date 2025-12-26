@@ -4,18 +4,18 @@
 
 ```mermaid
 flowchart LR
-  Client["Browser / Postman"] -->|HTTP| Front["orders-front (React + Nginx)"]
-  Front -->|HTTP| ApiSvc["orders-api (ASP.NET Core Web API)"]
+  Client["Browser / Postman"] --> Front["orders-front (React + Nginx)"];
+  Front --> ApiSvc["orders-api (ASP.NET Core Web API)"];
 
-  ApiSvc -->|Publish AMQP| MQ["RabbitMQ"]
-  WorkerSvc["orders-worker (BackgroundService)"] -->|Consume AMQP| MQ
+  ApiSvc --> MQ["RabbitMQ"];
+  WorkerSvc["orders-worker (BackgroundService)"] --> MQ;
 
-  WorkerSvc -->|Persist| SQL["SQL Server"]
-  WorkerSvc -->|Upsert read-model| Mongo["MongoDB"]
+  WorkerSvc --> SQL["SQL Server"];
+  WorkerSvc --> MongoDb["MongoDB"];
 
-  ApiSvc -->|GET (Read)| Mongo
+  ApiSvc --> MongoDb;
 
-  Prom["Prometheus"] -->|Scrape /metrics| ApiSvc
-  Graf["Grafana"] -->|Query| Prom
+  Prometheus["Prometheus"] --> ApiSvc;
+  Grafana["Grafana"] --> Prometheus;
 ```
 
