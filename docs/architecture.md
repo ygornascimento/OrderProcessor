@@ -19,3 +19,31 @@ flowchart LR
   Grafana["Grafana"] --> Prometheus;
 ```
 
+## Visão (C4 — Components / Code)
+
+```mermaid
+flowchart TB
+  subgraph Api["Orders.Api"]
+    Controller["OrdersController"] --> Handler["CreateOrderHandler"];
+    Handler --> PublisherPort["IOrderPublisher"];
+    Controller --> Reader["OrderReadModelReader"];
+    Reader --> MongoClient["MongoDb"];
+  end;
+
+  subgraph Infra["Orders.Infrastructure"]
+    RabbitPublisher["RabbitMqOrderPublisher"] --> RabbitClient["RabbitMQ.Client"];
+    EfContext["OrdersDbContext"] --> SqlServer["SQL Server"];
+    MongoWriter["OrderReadModelWriter"] --> MongoClient;
+    MongoClient --> MongoDb["MongoDB"];
+  end;
+
+  subgraph Worker["Orders.Worker"]
+    Consumer["RabbitMqOrderConsumer"] --> EfContext;
+    Consumer --> MongoWriter;
+    Consumer --> RabbitClient;
+  end;
+
+  PublisherPort --> RabbitPublisher;
+  RabbitPublisher --> MQ["RabbitMQ"];
+  MQ --> Consumer;
+```
