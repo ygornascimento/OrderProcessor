@@ -65,9 +65,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.MapControllers();
+
 app.UseHttpMetrics();
+app.MapControllers();
 app.MapMetrics();
+
 app.Run();
 
 public partial class Program { }
