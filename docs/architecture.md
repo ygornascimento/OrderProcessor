@@ -4,45 +4,46 @@
 
 ```mermaid
 flowchart LR
-  U[Cliente HTTP] -->|POST /api/orders| API[Orders.Api (ASP.NET Core Web API)]
+  Client["Browser / Postman"] -->|HTTP| Front["orders-front (React + Nginx)"]
+  Front -->|HTTP| API["orders-api (ASP.NET Core Web API)"]
+
   API -->|Publish (AMQP)| MQ[(RabbitMQ)]
-  W[Orders.Worker (BackgroundService)] -->|Consume (AMQP)| MQ
-  W -->|Persist| DB[(SQL Server)]
-  API -->|GET (Read)| DB
+  Worker["orders-worker (BackgroundService)"] -->|Consume (AMQP)| MQ
+
+  Worker -->|Persist| SQL[(SQL Server)]
+  Worker -->|Upsert read-model| Mongo[(MongoDB)]
+
+  API -->|GET (Read)| Mongo
+
+  Prom["Prometheus"] -->|Scrape /metrics| API
+  Graf["Grafana"] -->|Query| Prom
+
 
 flowchart TB
-  subgraph API[Orders.Api]
-    C[OrdersController]
-    UC[CreateOrderHandler (Application)]
-    P[IOrderPublisher (Port)]
+
+  subgraph API["Orders.Api"]
+    Controller["OrdersController"] --> Handler["CreateOrderHandler (Use Case)"]
+    Handler --> Publisher["IOrderPublisher (Port)"]
+    Reader["OrderReadModelReader"] --> MongoDb["MongoDb (Client)"]
+    Controller --> Reader
   end
 
-  subgraph INFRA[Orders.Infrastructure]
-    RAB[RabbitMqOrderPublisher (Adapter)]
+  subgraph Infra["Orders.Infrastructure"]
+    RabbitPublisher["RabbitMqOrderPublisher"] --> RabbitClient["RabbitMQ.Client"]
+    MongoWriter["OrderReadModelWriter"] --> MongoDb
+    MongoDb --> Mongo[(MongoDB)]
+    EfContext["OrdersDbContext"] --> SQL[(SQL Server)]
   end
 
-  C --> UC
-  UC --> P
-  P --> RAB
-
-flowchart TB
-  subgraph W[Orders.Worker]
-    CON[RabbitMqOrderConsumer]
+  subgraph Worker["Orders.Worker"]
+    Consumer["RabbitMqOrderConsumer"] --> EfContext
+    Consumer --> MongoWriter
+    Consumer --> RabbitClient
   end
 
-  subgraph APP[Orders.Application]
-    MSG[OrderCreatedMessage]
-  end
+  MQ[(RabbitMQ)] --> Consumer
+  Publisher --> RabbitPublisher --> MQ
 
-  subgraph INFRA[Orders.Infrastructure]
-    PORT[IOrderRepository (Port)]
-    REPO[EfOrderRepository (Adapter)]
-    DBCTX[OrdersDbContext (EF Core)]
-  end
 
-  CON -->|deserialize| MSG
-  CON --> PORT
-  PORT --> REPO
-  REPO --> DBCTX
 
 
