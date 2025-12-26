@@ -1,0 +1,155 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: orders-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: orders-sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Your_password123!"
+      MSSQL_PID: "Developer"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_password123!' -Q 'SELECT 1' -C || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  mongodb:
+    image: mongo:7
+    container_name: orders-mongodb
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - mongo_data:/data/db
+
+  orders-api:
+    build:
+      context: ..
+      dockerfile: src/Orders.Api/Dockerfile
+    container_name: orders-api
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      DOTNET_ENVIRONMENT: "Development"
+
+      # (se você implementou a flag, melhor; se não, é ignorado)
+      DisableHttpsRedirection: "true"
+
+      # RabbitMQ (bind com RabbitMqOptions)
+      RabbitMq__HostName: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: "guest"
+      RabbitMq__Password: "guest"
+      RabbitMq__QueueName: "orders.created"
+
+      # SQL Server (ConnectionStrings:OrdersDb)
+      ConnectionStrings__OrdersDb: "Server=sqlserver,1433;Database=OrdersDb;User Id=sa;Password=Your_password123!;TrustServerCertificate=True;Encrypt=False"
+
+      # Mongo (bind com MongoOptions.SectionName = 'Mongo')
+      Mongo__ConnectionString: "mongodb://mongodb:27017"
+      Mongo__Database: "OrdersReadDb"
+      Mongo__OrdersCollection: "orders"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+  orders-worker:
+    build:
+      context: ..
+      dockerfile: src/Orders.Worker/Dockerfile
+    container_name: orders-worker
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      DOTNET_ENVIRONMENT: "Development"
+
+      # RabbitMQ
+      RabbitMq__HostName: "rabbitmq"
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: "guest"
+      RabbitMq__Password: "guest"
+      RabbitMq__QueueName: "orders.created"
+
+      # SQL
+      ConnectionStrings__OrdersDb: "Server=sqlserver,1433;Database=OrdersDb;User Id=sa;Password=Your_password123!;TrustServerCertificate=True;Encrypt=False"
+
+      # Mongo
+      Mongo__ConnectionString: "mongodb://mongodb:27017"
+      Mongo__Database: "OrdersReadDb"
+      Mongo__OrdersCollection: "orders"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      sqlserver:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: orders-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - orders-api
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: orders-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - prometheus
+  orders-front:
+    build:
+      context: ../src/orders-front
+      dockerfile: Dockerfile
+    container_name: orders-front
+    ports:
+      - "3000:80"
+    depends_on:
+      - orders-api
+
+volumes:
+  rabbitmq_data:
+  sqlserver_data:
+  mongo_data:

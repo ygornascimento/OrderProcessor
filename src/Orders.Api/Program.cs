@@ -1,44 +1,89 @@
+using Orders.Application.Contracts;
+using Orders.Application.UseCases.CreateOrder;
+using Orders.Infrastructure.Messaging;
+using Microsoft.EntityFrameworkCore;
+using Orders.Infrastructure.Persistence;
+using Orders.Infrastructure.Mongo;
+using Serilog;
+using Prometheus;
+
+// Logger bootstrap
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .Enrich.WithEnvironmentName()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .WriteTo.Console()
+    .CreateLogger();
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Logger host
+builder.Host.UseSerilog();
+
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// RabbitMQ
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
+builder.Services.AddSingleton<IOrderPublisher, RabbitMqOrderPublisher>();
+builder.Services.AddScoped<CreateOrderHandler>();
+
+// SQL
+builder.Services.AddDbContext<OrdersDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("OrdersDb")));
+
+// Mongo
+builder.Services.Configure<MongoOptions>(builder.Configuration.GetSection(MongoOptions.SectionName));
+builder.Services.AddSingleton<MongoDb>();
+builder.Services.AddScoped<OrderReadModelWriter>();
+builder.Services.AddScoped<OrderReadModelReader>();
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("frontend", policy =>
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Swagger primeiro (opcional)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
-var summaries = new[]
+// Logging cedo
+app.UseSerilogRequestLogging(options =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    options.EnrichDiagnosticContext = (ctx, http) =>
+    {
+        ctx.Set("TraceId", http.TraceIdentifier);
+        ctx.Set("RequestPath", http.Request.Path);
+    };
+});
 
-app.MapGet("/weatherforecast", () =>
+// Pipeline “clássico”
+app.UseRouting();
+app.UseCors("frontend");
+
+if (!app.Environment.IsDevelopment())
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    app.UseHttpsRedirection();
+}
+
+// Metrics como middleware (mede requests)
+app.UseHttpMetrics();
+
+// Endpoints
+app.MapControllers();
+app.MapMetrics();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+public partial class Program { }
