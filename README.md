@@ -50,30 +50,7 @@ docker compose up -d --build
 * **Swagger**: [http://localhost:5000/swagger](http://localhost:5000/swagger)
 * **RabbitMQ UI**: [http://localhost:15672](http://localhost:15672)  (guest/guest)
 * **Prometheus**: [http://localhost:9090](http://localhost:9090)
-* **Grafana**: [http://localhost:3000](http://localhost:3000) (admin/admin)
-
-  > ⚠️ Se conflitar com o front, veja a seção “Portas” abaixo.
-
----
-
-## Portas (atenção)
-
-O teste pede:
-
-* Front em `localhost:3000`
-* API em `localhost:5000`
-
-Por isso:
-
-* `orders-front` expõe `3000:80`
-* `orders-api` expõe `5000:8080`
-
-Se você também estiver usando Grafana em `3000`, haverá conflito. Soluções:
-
-* **Opção A (recomendada):** Grafana em `3001:3000`
-* **Opção B:** manter Grafana em `3000` e front em outra porta
-
----
+* **Grafana**: [http://localhost:3001](http://localhost:3000) (admin/admin)
 
 ## Teste rápido do fluxo (sem front)
 
