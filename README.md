@@ -28,6 +28,8 @@ Serviços:
 ## Docs
 
 - Arquitetura (Mermaid): `docs/architecture.md`
+[Diagrama — C4 Containers](docs/architecture.md#visão-c4--containers)
+
 
 ---
 
