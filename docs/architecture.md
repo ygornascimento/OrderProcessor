@@ -2,7 +2,6 @@
 
 ## Visão (C4 — Containers)
 
-```mermaid
 flowchart LR
   Client["Browser / Postman"] -->|HTTP| Front["orders-front (React + Nginx)"]
   Front -->|HTTP| API["orders-api (ASP.NET Core Web API)"]
@@ -17,7 +16,6 @@ flowchart LR
 
   Prom["Prometheus"] -->|Scrape /metrics| API
   Graf["Grafana"] -->|Query| Prom
-```mermaid
 
 
 
