@@ -133,12 +133,21 @@ services:
     image: grafana/grafana:latest
     container_name: orders-grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
     depends_on:
       - prometheus
+  orders-front:
+    build:
+      context: ../src/orders-front
+      dockerfile: Dockerfile
+    container_name: orders-front
+    ports:
+      - "3000:80"
+    depends_on:
+      - orders-api
 
 volumes:
   rabbitmq_data:

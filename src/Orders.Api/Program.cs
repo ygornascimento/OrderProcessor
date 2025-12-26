@@ -7,7 +7,7 @@ using Orders.Infrastructure.Mongo;
 using Serilog;
 using Prometheus;
 
-//Lgger
+// Logger bootstrap
 Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .Enrich.WithEnvironmentName()
@@ -18,31 +18,47 @@ Log.Logger = new LoggerConfiguration()
 
 var builder = WebApplication.CreateBuilder(args);
 
-//Logger
+// Logger host
 builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-//RabbitMQ
+// RabbitMQ
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
 builder.Services.AddSingleton<IOrderPublisher, RabbitMqOrderPublisher>();
 builder.Services.AddScoped<CreateOrderHandler>();
 
-//SQL
+// SQL
 builder.Services.AddDbContext<OrdersDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("OrdersDb")));
 
-//Mongo
+// Mongo
 builder.Services.Configure<MongoOptions>(builder.Configuration.GetSection(MongoOptions.SectionName));
 builder.Services.AddSingleton<MongoDb>();
 builder.Services.AddScoped<OrderReadModelWriter>();
 builder.Services.AddScoped<OrderReadModelReader>();
 
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("frontend", policy =>
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
-//Logger
+// Swagger primeiro (opcional)
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+// Logging cedo
 app.UseSerilogRequestLogging(options =>
 {
     options.EnrichDiagnosticContext = (ctx, http) =>
@@ -52,21 +68,19 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Pipeline “clássico”
+app.UseRouting();
+app.UseCors("frontend");
 
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-
+// Metrics como middleware (mede requests)
 app.UseHttpMetrics();
+
+// Endpoints
 app.MapControllers();
 app.MapMetrics();
 
