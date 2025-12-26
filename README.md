@@ -25,6 +25,10 @@ Serviços:
 * `grafana`
 * `orders-front` (React/Vite build + Nginx)
 
+## Docs
+
+- Arquitetura (Mermaid): `docs/architecture.md`
+
 ---
 
 ## Requisitos
