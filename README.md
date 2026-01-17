@@ -1,7 +1,7 @@
 # Order Processor
 ---
 
-# Orders – Teste Técnico (API + Worker + RabbitMQ + SQL Server + Mongo + Observabilidade)
+# Orders – Teste Técnico (API + Worker + RabbitMQ + SQL Server + Mongo + Observabilidade + Docker)
 
 Este repositório implementa um fluxo assíncrono de criação de pedidos usando **RabbitMQ** (mensageria), **SQL Server** (persistência), **MongoDB** (read model/cache de leitura) e um **Worker** que consome mensagens e grava nos bancos. Inclui **Prometheus + Grafana** para métricas e **Serilog** para logs.
 
